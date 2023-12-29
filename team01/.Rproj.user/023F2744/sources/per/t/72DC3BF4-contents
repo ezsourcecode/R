@@ -1,0 +1,107 @@
+## 패키지 불러오기
+library(dplyr)
+library(rpart)
+library(e1071)
+library(randomForest)
+library(gbm)
+library(xgboost)
+library(lightgbm)
+
+## 평가 데이터프레임 만들기
+model_eval <- data.frame(
+  DT=numeric(100),
+  LR=numeric(100),
+  SVM=numeric(100),
+  RF=numeric(100),
+  GBoost=numeric(100),
+  XGBoost=numeric(100),
+  LightGBM =numeric(100)
+)
+str(model_eval)
+
+
+for (i in 1:100){
+  
+  tnset <- tn %>% 
+    filter(BID==i & DateTime < "2022-08-18 00:00:00") %>% 
+    select(PC, Temp, Rain, WS, HM, Time, DateTime, WorkD, WC, DI, DILv)
+  
+  ttset <- tn %>% 
+    filter(BID==i & DateTime >= "2022-08-18 00:00:00") %>% 
+    select(PC, Temp, Rain, WS, HM, Time, DateTime, WorkD, WC, DI, DILv)
+  
+  # 예측값과 비교할 실제 데이터
+  actual <- ttset$PC
+  
+  #############################################################################
+  ## 의사결정트리
+  model_DT <- rpart(PC ~ Temp+Rain+WS+HM+Time+WorkD+WC+DILv, data=tnset)
+  
+  ## 의사결정트리 모델 저장
+  saveRDS(model_DT, file = paste0(i,"DT.rds"))
+  
+  ## DT 평가점수 SMAPE
+  forecast <- predict(model_DT, newdata=ttset)
+ 
+  model_eval[i,"DT"] <- smape(actual, forecast)
+  ############################################################################
+  ## 다항회귀 모델
+  model_LR <- lm(PC~., data=tnset)
+  model_LR <- step(model_LR, direction="both")
+  saveRDS(model_LR, file = paste0(i,"LR.rds"))
+  forecast <- predict(model_LR, newdata=ttset)
+  model_eval[i,"LR"] <- smape(actual, forecast)
+  ############################################################################
+  ## 서포트벡터머신
+  model_SVM <- svm(PC~Temp+Rain+WS+HM+Time+WorkD+DateTime+WC, data=tnset, kernel="linear")
+  saveRDS(model_SVM, file = paste0(i,"SVM.rds"))
+  forecast <- predict(model_SVM, newdata = ttset)
+  model_eval[i,"SVM"] <- smape(actual, forecast)
+  ############################################################################
+  ## 랜덤포레스트
+  model_RF <- randomForest(PC~Temp+Rain+WS+HM+Time+WorkD+DateTime, data=tnset)
+  saveRDS(model_RF, file = paste0(i,"RF.rds"))
+  forecast <- predict(model_RF, newdata = ttset)
+  model_eval[i,"RF"] <- smape(actual, forecast)
+  ############################################################################
+  ## 그래디언트부스팅
+  model_GBM <- gbm(PC~Temp+Rain+WS+HM+Time+WorkD+WC+DILv, data=tnset, distribution="gaussian",
+                   n.trees=100, interaction.depth=5)
+  saveRDS(model_GBM, file = paste0(i,"GBM.rds"))
+  forecast <- predict(model_GBM, newdata = ttset)
+  model_eval[i,"GBoost"] <- smape(actual, forecast)
+  ############################################################################
+  ## XG부스팅
+  data_matrix <- as.matrix(tnset[,-c(1,6,7,8,11)])
+  label_vector <- tnset$PC
+  model_XGB <- xgboost(data=data_matrix, label=label_vector, nrounds=100, objective="reg:squarederror")
+  saveRDS(model_XGB, file = paste0(i,"XGB.rds"))
+  new_data_matrix=as.matrix(ttset[,-c(1,6,7,8,11)])
+  forecast <- predict(model_XGB, newdata=new_data_matrix)
+  model_eval[i,"XGBoost"] <- smape(actual, forecast)
+  ############################################################################
+  ## lightGBM
+  data_matrix <- as.matrix(tnset[,-c(1,6,7,8,11)])
+  label_vector <- tnset$PC
+  lgb_data <- lgb.Dataset(data=data_matrix, label=label_vector)
+  lgb_params <- list( objective = "regression_l1", boosting_type = "goss", method = "exact", nrounds = 100, learning_rate = 0.05, early_stopping_rounds = 20)
+  valids <- list(train = lgb_data)
+  model_LGB <- lgb.train(params = lgb_params, data = lgb_data, valids = valids)
+  saveRDS(model_LGB, file = paste0(i,"LGB.rds"))
+  new_data_matrix=as.matrix(ttset[,-c(1,6,7,8,11)])
+  forecast <- predict(model_LGB, data=new_data_matrix)
+  model_eval[i,"LightGBM"] <- smape(actual, forecast)
+}
+str(tnset)
+## 각 건물별 최적의 모델을 출력
+
+model_eval$min_smape <- apply(model_eval, 1, min)
+models <- colnames(model_eval)
+min_models <- models[apply(model_eval[,1:10], 1, which.min)]
+model_eval$Model <- min_models
+model_eval$min_smape <- as.numeric(model_eval$min_smape)
+str(model_eval)
+
+model_eval$BID <- 1:100
+model_eval <- model_eval[, c("BID","Model","min_smape","DT","LR","SVM","RF","GBoost","XGBoost", "LightGBM")]
+write.csv(model_eval, file = 'model_eval2.csv')

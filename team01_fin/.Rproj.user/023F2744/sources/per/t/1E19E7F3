@@ -1,0 +1,26 @@
+{
+    "id": "1E19E7F3",
+    "path": "C:/k_digital/r/source/team01_fin/xgboost.R",
+    "project_path": "xgboost.R",
+    "type": "r_source",
+    "hash": "1578396345",
+    "contents": "",
+    "dirty": false,
+    "created": 1692577560185.0,
+    "source_on_save": false,
+    "relative_order": 11,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "14,0",
+        "scrollLine": "9"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1692577505,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1692577505,
+    "read_only": false,
+    "read_only_alternatives": []
+}

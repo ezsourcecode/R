@@ -1,0 +1,74 @@
+## 테스트데이터 적용 모델
+PC_forecast <- function(tt){
+
+  library(lubridate)
+  library(dplyr)
+  library(rpart)
+  library(e1071)
+  library(randomForest)
+  library(gbm)
+  library(xgboost)
+  library(lightgbm)
+  
+  tt <- rename(tt,
+                 BID = `건물번호`, 
+                 DateTime = `일시`, 
+                 Temp = "기온.C.", 
+                 Rain = "강수량.mm.", 
+                 WS = `풍속.m.s.`, 
+                 HM = `습도...`)
+  tt$forecast <- NA
+  tt$WorkD <- ifelse(substr(tt$DateTime, 1, 8) %in% c("20220827", "20220828"), 0, 1)
+  tt$Time <- as.factor(substr(tt$DateTime, 10,11))
+  tt$DateTime <- ymd_h(tt$DateTime)
+  tt$num_date_time <- NULL
+  tt$WC <- 13.12 + 0.6215 * tt$Temp - 11.37 * tt$WS^0.16 + 0.3965 * tt$Temp * tt$WS^0.16
+  tt$DI <- 1.8 * tt$Temp -0.55 * (1 - tt$HM * 0.01) * (1.8 * tt$Temp -26) + 32
+  tt <- tt %>%
+    mutate(DILv = case_when(
+      DI < 68 ~ "Comfortable",
+      DI < 75 ~ "Discomfort",
+      DI < 80 ~ "Uncomfortable",
+      TRUE ~ "Very Uncomfortable"
+    )) %>%
+    mutate(DILv = factor(DILv, levels = c("Comfortable", "Discomfort", "Uncomfortable", "Very Uncomfortable")))
+
+  
+for (i in 1:100){
+  
+  model <- model_eval$Model[i]
+  data <- tt %>% 
+    filter(BID==i)
+  
+  if (model == "DT") {
+    loaded_model <- readRDS(paste0(i,"DT.rds"))
+    tt$forecast <- predict(loaded_model, newdata=data)
+  } else if (model=="LR") {
+    loaded_model <- readRDS(paste0(i,"LR.rds"))
+    tt$forecast <- predict(loaded_model, newdata=data)
+  } else if (model=="SVM") {
+    loaded_model <- readRDS(paste0(i,"SVM.rds"))
+    tt$forecast <- predict(loaded_model, newdata=data)
+  } else if (model=="RF") {
+    loaded_model <- readRDS(paste0(i,"RF.rds"))
+    tt$forecast <- predict(loaded_model, newdata=data)
+  } else if (model=="GBoost") {
+    loaded_model <- readRDS(paste0(i,"GBM.rds"))
+    tt$forecast <- predict(loaded_model, newdata=data)
+  } else if(model=="XGBoost") {
+    loaded_model <- readRDS(paste0(i,"XGB.rds"))
+    tt$forecast <- predict(loaded_model, newdata=data)
+  } else if(model=="lightGBM") {
+    loaded_model <- readRDS(paste0(i,"LGB.rds"))
+    tt$forecast <- predict(loaded_model, newdata=data)
+  }
+  
+}
+
+return(tt)
+}
+
+a <- PC_forecast(test)
+
+
+
